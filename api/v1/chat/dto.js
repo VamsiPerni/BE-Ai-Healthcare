@@ -24,4 +24,28 @@ const endConversationValidator = (req, res, next) => {
     next();
 };
 
-module.exports = { sendMessageValidator, endConversationValidator };
+const confirmSummaryValidator = (req, res, next) => {
+    const { conversationId, accepted, feedback } = req.body;
+
+    if (!conversationId || typeof accepted !== "boolean") {
+        return res.status(400).json({
+            isSuccess: false,
+            message: "conversationId and accepted(boolean) are required",
+        });
+    }
+
+    if (!accepted && !feedback?.trim()) {
+        return res.status(400).json({
+            isSuccess: false,
+            message: "feedback is required when accepted is false",
+        });
+    }
+
+    next();
+};
+
+module.exports = {
+    sendMessageValidator,
+    endConversationValidator,
+    confirmSummaryValidator,
+};

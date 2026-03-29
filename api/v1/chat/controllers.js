@@ -2,6 +2,7 @@ const {
     startConversation,
     sendMessage,
     endConversation,
+    confirmSummary,
     getConversation,
     getPatientConversations,
 } = require("./services");
@@ -60,6 +61,25 @@ const endConversationController = async (req, res, next) => {
     }
 };
 
+const confirmSummaryController = async (req, res, next) => {
+    try {
+        console.log("-----🟢 inside confirmSummaryController-------");
+
+        const data = await confirmSummary(req.currentPatient.userId, req.body);
+        res.status(200).json({
+            isSuccess: true,
+            message: data.accepted
+                ? "Summary confirmed and consultation completed"
+                : "Summary revision requested. Please continue chat.",
+            data,
+        });
+    } catch (err) {
+        console.log("-----🔴 Error in confirmSummaryController--------");
+        console.log(err.message);
+        next(err);
+    }
+};
+
 const getConversationController = async (req, res, next) => {
     try {
         console.log("-----🟢 inside getConversationController-------");
@@ -106,6 +126,7 @@ module.exports = {
     startConversationController,
     sendMessageController,
     endConversationController,
+    confirmSummaryController,
     getConversationController,
     getPatientConversationsController,
 };

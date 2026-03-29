@@ -42,6 +42,37 @@ const appointmentSchema = new Schema(
             enum: ["normal", "emergency"],
             default: "normal",
         },
+        queueType: {
+            type: String,
+            enum: ["normal", "ayurveda", "panchakarma"],
+            default: "normal",
+        },
+        queueDate: {
+            type: String,
+            default: null,
+        },
+        tokenNumber: {
+            type: String,
+            default: null,
+        },
+        tokenSequence: {
+            type: Number,
+            default: null,
+        },
+        queueStatus: {
+            type: String,
+            enum: ["waiting", "called", "in_consultation", "done"],
+            default: "waiting",
+        },
+        calledAt: {
+            type: Date,
+            default: null,
+        },
+        calledBy: {
+            type: Schema.Types.ObjectId,
+            ref: "user",
+            default: null,
+        },
         chatConversationId: {
             type: String,
             ref: "chatHistory",
@@ -207,6 +238,7 @@ appointmentSchema.methods.approveByAdmin = function (adminId, edits = null) {
 //method to mark as completed
 appointmentSchema.methods.markCompleted = function (prescription, notes) {
     this.status = "completed";
+    this.queueStatus = "done";
     this.prescription = {
         ...prescription,
         prescribedAt: new Date(),

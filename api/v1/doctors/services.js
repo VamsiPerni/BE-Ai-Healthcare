@@ -21,6 +21,29 @@ const getDoctorDashboard = async (userId) => {
         });
     }
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const [totalAppointments, completedAppointments, todayAppointmentsData] =
+        await Promise.all([
+            AppointmentModel.countDocuments({
+                doctorId: userId,
+                status: { $nin: ["cancelled", "rejected"] },
+            }),
+            AppointmentModel.countDocuments({
+                doctorId: userId,
+                status: "completed",
+            }),
+            getTodayAppointments(userId),
+        ]);
+
+    const patientIds = await AppointmentModel.distinct("patientId", {
+        doctorId: userId,
+        status: { $nin: ["cancelled", "rejected"] },
+    });
+
     return {
         doctorId: doctor._id,
         userId: doctor.userId,
@@ -28,6 +51,13 @@ const getDoctorDashboard = async (userId) => {
         experience: doctor.experience,
         isVerified: doctor.isVerified,
         createdAt: doctor.createdAt,
+        stats: {
+            todayAppointments: todayAppointmentsData.totalCount,
+            totalAppointments,
+            totalPatients: patientIds.length,
+            completedAppointments,
+        },
+        todayAppointments: todayAppointmentsData.appointments,
     };
 };
 
@@ -148,6 +178,7 @@ const getTodayAppointments = async (userId) => {
 
         return {
             appointmentId: apt._id,
+            status: apt.status,
             urgencyLevel: apt.urgencyLevel,
             timeSlot: apt.timeSlot,
             patient: {

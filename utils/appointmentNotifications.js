@@ -139,10 +139,31 @@ const notifyAppointmentCancelled = (
     );
 };
 
+const notifyPatientTurnCalled = (
+    patientEmail,
+    { doctorName, date, tokenNumber },
+) => {
+    const body = `
+    <p><strong>It's your turn now.</strong> Please proceed to the consultation room.</p>
+    <div class="detail">
+      <p><strong>Doctor:</strong> ${doctorName}</p>
+      <p><strong>Date:</strong> ${new Date(date).toLocaleDateString()}</p>
+      <p><strong>Token:</strong> ${tokenNumber || "N/A"}</p>
+    </div>
+    <p>Please arrive immediately to avoid delays for the next patients.</p>`;
+    sendNotification(
+        patientEmail,
+        "Your Turn - AyurAyush",
+        "Please Proceed to Doctor",
+        body,
+    );
+};
+
 module.exports = {
     notifyAppointmentBooked,
     notifyAppointmentApproved,
     notifyAppointmentRejected,
     notifyAppointmentCompleted,
     notifyAppointmentCancelled,
+    notifyPatientTurnCalled,
 };

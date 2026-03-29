@@ -164,6 +164,14 @@ const sendMessage = async (userId, { conversationId, message }) => {
         throw error;
     }
 
+    if (chatHistory.status === "draft_ready") {
+        const error = new Error(
+            "A draft summary is ready. Please confirm it or request revision.",
+        );
+        error.statusCode = 400;
+        throw error;
+    }
+
     const isEmergency = checkForEmergency(message);
 
     await chatHistory.addMessage("user", message, isEmergency);
@@ -212,6 +220,14 @@ const endConversation = async (userId, conversationId) => {
         throw error;
     }
 
+    if (chatHistory.status === "draft_ready" && chatHistory.summaryDraft) {
+        return {
+            conversationId,
+            status: "draft_ready",
+            summaryDraft: chatHistory.summaryDraft,
+        };
+    }
+
     if (chatHistory.messages.length < 2) {
         const error = new Error(
             "Please have at least one exchange with the assistant before ending the conversation.",
@@ -232,23 +248,85 @@ const endConversation = async (userId, conversationId) => {
         summary.urgencyLevel = "emergency";
     }
 
-    // Run rule-based recommendation engine
-    const recommendation = buildRecommendation(summary, isEmergency);
-
-    // Persist full summary + recommendation fields into chatHistory
-    await chatHistory.completeSummary({
+    await chatHistory.setSummaryDraft({
         ...summary,
-        suggestedCarePath: recommendation.suggestedCarePath,
-        recommendedTreatmentCodes: recommendation.recommendedTreatmentCodes,
-        prakritiType: recommendation.prakritiType,
-        preConsultNote: recommendation.preConsultNote,
         carePreference: summary.carePreference,
     });
 
     return {
         conversationId,
-        summary,
+        status: "draft_ready",
+        summaryDraft: chatHistory.summaryDraft,
+    };
+};
+
+const confirmSummary = async (
+    userId,
+    { conversationId, accepted, feedback },
+) => {
+    console.log("-----🟢 inside confirmSummary-------");
+
+    const chatHistory = await ChatHistoryModel.findOne({
+        conversationId,
+        patientId: userId,
+    });
+
+    if (!chatHistory) {
+        const error = new Error("Conversation not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    if (!chatHistory.summaryDraft) {
+        const error = new Error(
+            "No draft summary found. End the conversation to generate a draft first.",
+        );
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (!accepted) {
+        const trimmedFeedback = feedback?.trim();
+        chatHistory.summaryRevisions.push({
+            feedback: trimmedFeedback,
+            draft: chatHistory.summaryDraft,
+        });
+
+        await chatHistory.addMessage(
+            "assistant",
+            `Thanks for the clarification. I have noted this feedback: "${trimmedFeedback}". Please tell me what needs to be corrected or add any missing symptoms, and I will regenerate your report.`,
+            false,
+        );
+
+        chatHistory.status = "active";
+        chatHistory.summaryDraft = undefined;
+        await chatHistory.save();
+
+        return {
+            accepted: false,
+            conversationId,
+            status: "active",
+        };
+    }
+
+    const draft = chatHistory.summaryDraft;
+    const isEmergency = draft.urgencyLevel === "emergency";
+    const recommendation = buildRecommendation(draft, isEmergency);
+
+    await chatHistory.completeSummary({
+        ...draft,
+        suggestedCarePath: recommendation.suggestedCarePath,
+        recommendedTreatmentCodes: recommendation.recommendedTreatmentCodes,
+        prakritiType: recommendation.prakritiType,
+        preConsultNote: recommendation.preConsultNote,
+        carePreference: draft.carePreference,
+    });
+
+    return {
+        accepted: true,
+        conversationId,
         status: "completed",
+        summary: chatHistory.summary,
         recommendation: {
             suggestedCarePath: recommendation.suggestedCarePath,
             urgencyLevel: recommendation.urgencyLevel,
@@ -278,6 +356,7 @@ const getConversation = async (userId, conversationId) => {
         status: chatHistory.status,
         messages: chatHistory.messages,
         summary: chatHistory.summary,
+        summaryDraft: chatHistory.summaryDraft,
         createdAt: chatHistory.createdAt,
     };
 };
@@ -311,6 +390,7 @@ module.exports = {
     startConversation,
     sendMessage,
     endConversation,
+    confirmSummary,
     getConversation,
     getPatientConversations,
 };

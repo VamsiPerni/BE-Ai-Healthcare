@@ -68,9 +68,36 @@ const chatHistorySchema = new Schema(
                 type: Date,
             },
         },
+        summaryDraft: {
+            symptoms: [{ type: String }],
+            duration: { type: String, default: "" },
+            severity: { type: Number, min: 1, max: 10, default: null },
+            urgencyLevel: {
+                type: String,
+                enum: ["normal", "urgent", "emergency"],
+                default: "normal",
+            },
+            recommendedSpecialist: { type: String, default: "" },
+            detailedSummary: { type: String, default: "" },
+            generatedAt: { type: Date },
+        },
+        summaryRevisions: [
+            {
+                feedback: { type: String, default: "" },
+                revisedAt: { type: Date, default: Date.now },
+                draft: {
+                    symptoms: [{ type: String }],
+                    duration: String,
+                    severity: Number,
+                    urgencyLevel: String,
+                    recommendedSpecialist: String,
+                    detailedSummary: String,
+                },
+            },
+        ],
         status: {
             type: String,
-            enum: ["active", "completed", "emergency"],
+            enum: ["active", "draft_ready", "completed", "emergency"],
             default: "active",
         },
         appointmentId: {
@@ -115,7 +142,17 @@ chatHistorySchema.methods.completeSummary = function (summaryData) {
         ...summaryData,
         generatedAt: new Date(),
     };
+    this.summaryDraft = undefined;
     this.status = "completed";
+    return this.save();
+};
+
+chatHistorySchema.methods.setSummaryDraft = function (summaryData) {
+    this.summaryDraft = {
+        ...summaryData,
+        generatedAt: new Date(),
+    };
+    this.status = "draft_ready";
     return this.save();
 };
 

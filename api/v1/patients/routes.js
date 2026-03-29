@@ -15,6 +15,9 @@ const {
     getPatientProfileController,
     updatePatientProfileController,
     getTreatmentSuggestionsController,
+    getTwoDaySlotsController,
+    getPatientNotificationsController,
+    markPatientNotificationReadController,
 } = require("./controllers");
 const {
     bookAppointmentValidator,
@@ -47,6 +50,14 @@ patientsRouter.get(
     validatePatientRole,
     getAvailableSlotsValidator,
     getAvailableSlotsController,
+);
+
+patientsRouter.get(
+    "/appointments/available-slots-2days",
+    validateLoggedInUserMiddleware,
+    validatePatientRole,
+    getAvailableSlotsValidator,
+    getTwoDaySlotsController,
 );
 
 // Book appointment
@@ -106,13 +117,26 @@ patientsRouter.put(
     updatePatientProfileController,
 );
 
-module.exports = { patientsRouter };
 // Get treatment suggestions from a completed conversation
 patientsRouter.get(
     "/treatment-suggestions",
     validateLoggedInUserMiddleware,
     validatePatientRole,
     getTreatmentSuggestionsController,
+);
+
+patientsRouter.get(
+    "/notifications",
+    validateLoggedInUserMiddleware,
+    validatePatientRole,
+    getPatientNotificationsController,
+);
+
+patientsRouter.patch(
+    "/notifications/:notificationId/read",
+    validateLoggedInUserMiddleware,
+    validatePatientRole,
+    markPatientNotificationReadController,
 );
 
 module.exports = { patientsRouter };

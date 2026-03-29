@@ -18,16 +18,24 @@ const {
 const {
     notifyAppointmentApproved,
     notifyAppointmentRejected,
+    notifyPatientTurnCalled,
 } = require("../../../utils/appointmentNotifications");
+const {
+    PatientNotificationModel,
+} = require("../../../models/patientNotificationSchema");
 
 const getDashboardStats = async () => {
     console.log("-----🟢 inside getDashboardStats-------");
-    const [totalUsers, totalDoctors, totalPatients] = await Promise.all([
-        UserModel.countDocuments(),
-        UserModel.countDocuments({ roles: "doctor" }),
-        UserModel.countDocuments({ roles: "patient" }),
-    ]);
-    return { totalUsers, totalDoctors, totalPatients };
+    const [totalUsers, totalDoctors, totalPatients, pendingApprovals] =
+        await Promise.all([
+            UserModel.countDocuments(),
+            UserModel.countDocuments({ roles: "doctor" }),
+            UserModel.countDocuments({ roles: "patient" }),
+            AppointmentModel.countDocuments({
+                status: "pending_admin_approval",
+            }),
+        ]);
+    return { totalUsers, totalDoctors, totalPatients, pendingApprovals };
 };
 
 const getPendingDoctorApplications = async () => {
@@ -312,6 +320,10 @@ const approveAppointment = async (
         appointment.adminNotes = adminNotes;
     }
 
+    if (!appointment.queueStatus) {
+        appointment.queueStatus = "waiting";
+    }
+
     await appointment.approveByAdmin(adminUserId, edits);
 
     const updatedAppointment = await AppointmentModel.findById(appointmentId)
@@ -503,6 +515,94 @@ const offlineBookAppointment = async (adminId, bookingData) => {
     };
 };
 
+const getTodayQueue = async (dateInput, doctorId) => {
+    const day = dateInput ? new Date(dateInput) : new Date();
+    day.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const filter = {
+        status: "confirmed",
+        date: { $gte: day, $lte: dayEnd },
+    };
+
+    if (doctorId) {
+        filter.doctorId = doctorId;
+    }
+
+    const appointments = await AppointmentModel.find(filter)
+        .populate("patientId", "name email phone")
+        .populate("doctorId", "name")
+        .sort({ doctorId: 1, tokenSequence: 1, timeSlot: 1 });
+
+    return {
+        date: day.toISOString().slice(0, 10),
+        count: appointments.length,
+        appointments: appointments.map((apt) => ({
+            appointmentId: apt._id,
+            tokenNumber: apt.tokenNumber,
+            tokenSequence: apt.tokenSequence,
+            queueStatus: apt.queueStatus,
+            queueType: apt.queueType,
+            timeSlot: apt.timeSlot,
+            patient: {
+                id: apt.patientId._id,
+                name: apt.patientId.name,
+                email: apt.patientId.email,
+                phone: apt.patientId.phone,
+            },
+            doctor: {
+                id: apt.doctorId._id,
+                name: apt.doctorId.name,
+            },
+        })),
+    };
+};
+
+const callPatientForTurn = async (appointmentId, adminUserId) => {
+    const appointment = await AppointmentModel.findById(appointmentId)
+        .populate("patientId", "name email")
+        .populate("doctorId", "name");
+
+    if (!appointment) {
+        const err = new Error("Appointment not found");
+        err.statusCode = 404;
+        throw err;
+    }
+
+    if (appointment.status !== "confirmed") {
+        const err = new Error("Only confirmed appointments can be called");
+        err.statusCode = 400;
+        throw err;
+    }
+
+    appointment.queueStatus = "called";
+    appointment.calledAt = new Date();
+    appointment.calledBy = adminUserId;
+    await appointment.save();
+
+    const notification = await PatientNotificationModel.create({
+        patientId: appointment.patientId._id,
+        appointmentId: appointment._id,
+        type: "turn_called",
+        title: "Your turn now",
+        message: `You are being called for consultation with Dr. ${appointment.doctorId.name}. Please proceed now.`,
+    });
+
+    notifyPatientTurnCalled(appointment.patientId.email, {
+        doctorName: appointment.doctorId.name,
+        date: appointment.date,
+        tokenNumber: appointment.tokenNumber,
+    });
+
+    return {
+        appointmentId: appointment._id,
+        queueStatus: appointment.queueStatus,
+        calledAt: appointment.calledAt,
+        notificationId: notification._id,
+    };
+};
+
 module.exports = {
     getDashboardStats,
     getPendingDoctorApplications,
@@ -512,6 +612,8 @@ module.exports = {
     getEmergencyAppointments,
     approveAppointment,
     rejectAppointment,
+    getTodayQueue,
+    callPatientForTurn,
     setDoctorAvailability,
     offlineBookAppointment,
 };

@@ -23,6 +23,31 @@ const {
     notifyAppointmentCancelled,
 } = require("../../../utils/appointmentNotifications");
 const { ChatHistoryModel } = require("../../../models/chatHistorySchema");
+const {
+    PatientNotificationModel,
+} = require("../../../models/patientNotificationSchema");
+
+const getPeopleAhead = async (appointment) => {
+    if (
+        !appointment?.doctorId ||
+        !appointment?.queueDate ||
+        !appointment?.queueType ||
+        typeof appointment?.tokenSequence !== "number"
+    ) {
+        return null;
+    }
+
+    const peopleAhead = await AppointmentModel.countDocuments({
+        doctorId: appointment.doctorId,
+        queueDate: appointment.queueDate,
+        queueType: appointment.queueType,
+        tokenSequence: { $lt: appointment.tokenSequence },
+        status: { $in: ["confirmed"] },
+        queueStatus: { $in: ["waiting", "called", "in_consultation"] },
+    });
+
+    return peopleAhead;
+};
 
 const getPatientDashboard = async (userId) => {
     console.log("-----🟢 inside getPatientDashboard-------");
@@ -38,6 +63,52 @@ const getPatientDashboard = async (userId) => {
         });
     }
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [
+        totalAppointments,
+        upcomingAppointments,
+        completedAppointments,
+        pendingAppointments,
+        cancelledAppointments,
+        recentAppointmentsRaw,
+    ] = await Promise.all([
+        AppointmentModel.countDocuments({ patientId: userId }),
+        AppointmentModel.countDocuments({
+            patientId: userId,
+            status: { $in: ["pending_admin_approval", "confirmed"] },
+            date: { $gte: todayStart },
+        }),
+        AppointmentModel.countDocuments({
+            patientId: userId,
+            status: "completed",
+        }),
+        AppointmentModel.countDocuments({
+            patientId: userId,
+            status: "pending_admin_approval",
+        }),
+        AppointmentModel.countDocuments({
+            patientId: userId,
+            status: { $in: ["cancelled", "rejected"] },
+        }),
+        AppointmentModel.find({ patientId: userId })
+            .populate("doctorId", "name")
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select("date timeSlot status doctorId"),
+    ]);
+
+    const recentAppointments = recentAppointmentsRaw.map((apt) => ({
+        appointmentId: apt._id,
+        date: apt.date,
+        timeSlot: apt.timeSlot,
+        status: apt.status,
+        doctor: {
+            name: apt.doctorId?.name || "Doctor",
+        },
+    }));
+
     return {
         patientId: patient._id,
         userId: patient.userId,
@@ -47,6 +118,14 @@ const getPatientDashboard = async (userId) => {
         allergies: patient.allergies,
         emergencyContact: patient.emergencyContact,
         createdAt: patient.createdAt,
+        stats: {
+            totalAppointments,
+            upcomingAppointments,
+            completedAppointments,
+            pendingAppointments,
+            cancelledAppointments,
+        },
+        recentAppointments,
     };
 };
 
@@ -105,6 +184,54 @@ const getAvailableSlots = async (doctorId, date) => {
         date,
         availableSlots,
         totalSlots: availableSlots.length,
+    };
+};
+
+const getTwoDaySlots = async (doctorId) => {
+    const doctor = await DoctorModel.findOne({
+        userId: doctorId,
+        isVerified: true,
+    });
+
+    if (!doctor) {
+        const error = new Error("Doctor not found or not verified");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const formatDate = (d) => {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+    };
+    const day1 = formatDate(today);
+    const day2 = formatDate(tomorrow);
+
+    const [slotsDay1, slotsDay2] = await Promise.all([
+        DoctorAvailabiltyModel.getBookableSlots(
+            doctorId,
+            day1,
+            AppointmentModel,
+        ),
+        DoctorAvailabiltyModel.getBookableSlots(
+            doctorId,
+            day2,
+            AppointmentModel,
+        ),
+    ]);
+
+    return {
+        doctorId,
+        slotsByDate: {
+            [day1]: slotsDay1,
+            [day2]: slotsDay2,
+        },
     };
 };
 
@@ -384,30 +511,39 @@ const getPatientAppointments = async (userId, status, query = {}) => {
         doctorProfiles.map((d) => [d.userId.toString(), d]),
     );
 
-    const appointmentsWithDetails = appointments.map((apt) => {
-        const doctor = doctorMap.get(apt.doctorId._id.toString());
+    const appointmentsWithDetails = await Promise.all(
+        appointments.map(async (apt) => {
+            const peopleAhead = await getPeopleAhead(apt);
+            const doctor = doctorMap.get(apt.doctorId._id.toString());
 
-        return {
-            appointmentId: apt._id,
-            status: apt.status,
-            urgencyLevel: apt.urgencyLevel,
-            date: apt.date,
-            timeSlot: apt.timeSlot,
-            symptoms: apt.symptoms,
-            doctor: {
-                userId: apt.doctorId._id,
-                name: apt.doctorId.name,
-                email: apt.doctorId.email,
-                phone: apt.doctorId.phone,
-                profilePhoto: apt.doctorId.profilePhoto,
-                specialization: doctor?.specialization,
-                qualification: doctor?.qualification,
-                consultationFee: doctor?.consultationFee,
-            },
-            createdAt: apt.createdAt,
-            adminNotes: apt.adminNotes,
-        };
-    });
+            return {
+                appointmentId: apt._id,
+                status: apt.status,
+                urgencyLevel: apt.urgencyLevel,
+                queueType: apt.queueType,
+                queueDate: apt.queueDate,
+                tokenNumber: apt.tokenNumber,
+                tokenSequence: apt.tokenSequence,
+                queueStatus: apt.queueStatus,
+                peopleAhead,
+                date: apt.date,
+                timeSlot: apt.timeSlot,
+                symptoms: apt.symptoms,
+                doctor: {
+                    userId: apt.doctorId._id,
+                    name: apt.doctorId.name,
+                    email: apt.doctorId.email,
+                    phone: apt.doctorId.phone,
+                    profilePhoto: apt.doctorId.profilePhoto,
+                    specialization: doctor?.specialization,
+                    qualification: doctor?.qualification,
+                    consultationFee: doctor?.consultationFee,
+                },
+                createdAt: apt.createdAt,
+                adminNotes: apt.adminNotes,
+            };
+        }),
+    );
 
     return {
         count: appointmentsWithDetails.length,
@@ -437,6 +573,8 @@ const getAppointmentDetails = async (userId, appointmentId) => {
         userId: appointment.doctorId._id,
     });
 
+    const peopleAhead = await getPeopleAhead(appointment);
+
     const chatHistory = await ChatHistoryModel.findOne({
         conversationId: appointment.chatConversationId,
     }).select("messages summary");
@@ -446,6 +584,13 @@ const getAppointmentDetails = async (userId, appointmentId) => {
             id: appointment._id,
             status: appointment.status,
             urgencyLevel: appointment.urgencyLevel,
+            queueType: appointment.queueType,
+            queueDate: appointment.queueDate,
+            tokenNumber: appointment.tokenNumber,
+            tokenSequence: appointment.tokenSequence,
+            queueStatus: appointment.queueStatus,
+            calledAt: appointment.calledAt,
+            peopleAhead,
             date: appointment.date,
             timeSlot: appointment.timeSlot,
             symptoms: appointment.symptoms,
@@ -660,10 +805,51 @@ const updatePatientProfile = async (userId, updates) => {
     };
 };
 
+const getPatientNotifications = async (userId) => {
+    const notifications = await PatientNotificationModel.find({
+        patientId: userId,
+    })
+        .sort({ createdAt: -1 })
+        .limit(30);
+
+    const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+    return {
+        unreadCount,
+        notifications,
+    };
+};
+
+const markPatientNotificationRead = async (userId, notificationId) => {
+    const notification = await PatientNotificationModel.findOne({
+        _id: notificationId,
+        patientId: userId,
+    });
+
+    if (!notification) {
+        const error = new Error("Notification not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    if (!notification.isRead) {
+        notification.isRead = true;
+        notification.readAt = new Date();
+        await notification.save();
+    }
+
+    return {
+        notificationId: notification._id,
+        isRead: notification.isRead,
+        readAt: notification.readAt,
+    };
+};
+
 module.exports = {
     getPatientDashboard,
     applyForDoctorRole,
     getAvailableSlots,
+    getTwoDaySlots,
     bookAppointment,
     getPatientAppointments,
     getAppointmentDetails,
@@ -672,4 +858,6 @@ module.exports = {
     getPatientProfile,
     updatePatientProfile,
     getTreatmentSuggestionsForPatient,
+    getPatientNotifications,
+    markPatientNotificationRead,
 };

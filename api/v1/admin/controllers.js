@@ -7,6 +7,8 @@ const {
     getEmergencyAppointments,
     approveAppointment,
     rejectAppointment,
+    getTodayQueue,
+    callPatientForTurn,
     setDoctorAvailability,
     offlineBookAppointment,
 } = require("./services");
@@ -175,6 +177,35 @@ const rejectAppointmentController = async (req, res, next) => {
     }
 };
 
+const getTodayQueueController = async (req, res, next) => {
+    try {
+        const data = await getTodayQueue(req.query.date, req.query.doctorId);
+        res.status(200).json({
+            isSuccess: true,
+            message: "Today's queue retrieved",
+            data,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+const callPatientController = async (req, res, next) => {
+    try {
+        const data = await callPatientForTurn(
+            req.params.appointmentId,
+            req.currentAdmin.userId,
+        );
+        res.status(200).json({
+            isSuccess: true,
+            message: "Patient turn notification sent",
+            data,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 const setDoctorAvailabilityController = async (req, res, next) => {
     try {
         console.log("-----🟢 inside setDoctorAvailabilityController-------");
@@ -227,6 +258,8 @@ module.exports = {
     getEmergencyAppointmentsController,
     approveAppointmentController,
     rejectAppointmentController,
+    getTodayQueueController,
+    callPatientController,
     setDoctorAvailabilityController,
     offlineBookAppointmentController,
 };

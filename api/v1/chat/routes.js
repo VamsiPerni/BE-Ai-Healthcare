@@ -7,10 +7,15 @@ const {
     startConversationController,
     sendMessageController,
     endConversationController,
+    confirmSummaryController,
     getConversationController,
     getPatientConversationsController,
 } = require("./controllers");
-const { sendMessageValidator, endConversationValidator } = require("./dto");
+const {
+    sendMessageValidator,
+    endConversationValidator,
+    confirmSummaryValidator,
+} = require("./dto");
 
 const chatRouter = express.Router();
 
@@ -38,6 +43,15 @@ chatRouter.post(
     validatePatientRole,
     endConversationValidator,
     endConversationController,
+);
+
+// Confirm draft summary or request revision
+chatRouter.post(
+    "/summary-confirm",
+    validateLoggedInUserMiddleware,
+    validatePatientRole,
+    confirmSummaryValidator,
+    confirmSummaryController,
 );
 
 // Get all patient conversations

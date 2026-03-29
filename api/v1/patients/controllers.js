@@ -9,6 +9,10 @@ const {
     getVerifiedDoctors,
     getPatientProfile,
     updatePatientProfile,
+    getTreatmentSuggestionsForPatient,
+    getTwoDaySlots,
+    getPatientNotifications,
+    markPatientNotificationRead,
 } = require("./services");
 
 const patientDashboardController = async (req, res, next) => {
@@ -47,6 +51,20 @@ const getAvailableSlotsController = async (req, res, next) => {
         res.status(200).json({
             isSuccess: true,
             message: "Available slots retrieved",
+            data,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getTwoDaySlotsController = async (req, res, next) => {
+    try {
+        const { doctorId } = req.query;
+        const data = await getTwoDaySlots(doctorId);
+        res.status(200).json({
+            isSuccess: true,
+            message: "2-day slots retrieved",
             data,
         });
     } catch (err) {
@@ -183,20 +201,40 @@ const getTreatmentSuggestionsController = async (req, res, next) => {
     }
 };
 
+const getPatientNotificationsController = async (req, res, next) => {
+    try {
+        const data = await getPatientNotifications(req.currentPatient.userId);
+        res.status(200).json({
+            isSuccess: true,
+            message: "Notifications retrieved",
+            data,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+const markPatientNotificationReadController = async (req, res, next) => {
+    try {
+        const data = await markPatientNotificationRead(
+            req.currentPatient.userId,
+            req.params.notificationId,
+        );
+        res.status(200).json({
+            isSuccess: true,
+            message: "Notification marked as read",
+            data,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     patientDashboardController,
     applyForDoctorRoleController,
     getAvailableSlotsController,
-    bookAppointmentController,
-    getPatientAppointmentsController,
-    getAppointmentDetailsController,
-    cancelAppointmentController,
-    getVerifiedDoctorsController,
-    getPatientProfileController,
-    updatePatientProfileController,
-    patientDashboardController,
-    applyForDoctorRoleController,
-    getAvailableSlotsController,
+    getTwoDaySlotsController,
     bookAppointmentController,
     getPatientAppointmentsController,
     getAppointmentDetailsController,
@@ -205,4 +243,6 @@ module.exports = {
     getPatientProfileController,
     updatePatientProfileController,
     getTreatmentSuggestionsController,
+    getPatientNotificationsController,
+    markPatientNotificationReadController,
 };

@@ -19,12 +19,12 @@ const buildEmailHtml = (title, body) => `
 </head>
 <body>
   <div class="card">
-    <div class="header"><h1>AyurAyush</h1></div>
+    <div class="header"><h1>AarogyaAI</h1></div>
     <div class="content">
       <h2>${title}</h2>
       ${body}
     </div>
-    <div class="footer"><p>AyurAyush Healthcare, LPU</p></div>
+    <div class="footer"><p>AarogyaAI Healthcare, LPU</p></div>
   </div>
 </body>
 </html>`;
@@ -53,7 +53,7 @@ const notifyAppointmentBooked = (
     <p>You will receive another email once the admin reviews your appointment.</p>`;
     sendNotification(
         patientEmail,
-        "Appointment Booked - AyurAyush",
+        "Appointment Booked - AarogyaAI",
         "Appointment Submitted",
         body,
     );
@@ -73,7 +73,7 @@ const notifyAppointmentApproved = (
     <p>Please arrive on time for your consultation.</p>`;
     sendNotification(
         patientEmail,
-        "Appointment Approved - AyurAyush",
+        "Appointment Approved - AarogyaAI",
         "Appointment Confirmed",
         body,
     );
@@ -93,7 +93,7 @@ const notifyAppointmentRejected = (
     <p>You can book a new appointment with a different doctor or time slot.</p>`;
     sendNotification(
         patientEmail,
-        "Appointment Rejected - AyurAyush",
+        "Appointment Rejected - AarogyaAI",
         "Appointment Rejected",
         body,
     );
@@ -110,10 +110,10 @@ const notifyAppointmentCompleted = (
       <p><strong>Date:</strong> ${new Date(date).toLocaleDateString()}</p>
       ${hasPrescription ? "<p><strong>Prescription:</strong> Available in your dashboard</p>" : ""}
     </div>
-    <p>Thank you for visiting AyurAyush. We wish you a speedy recovery!</p>`;
+    <p>Thank you for visiting AarogyaAI. We wish you a speedy recovery!</p>`;
     sendNotification(
         patientEmail,
-        "Appointment Completed - AyurAyush",
+        "Appointment Completed - AarogyaAI",
         "Appointment Completed",
         body,
     );
@@ -133,7 +133,7 @@ const notifyAppointmentCancelled = (
     <p>You can book a new appointment anytime from your dashboard.</p>`;
     sendNotification(
         patientEmail,
-        "Appointment Cancelled - AyurAyush",
+        "Appointment Cancelled - AarogyaAI",
         "Appointment Cancelled",
         body,
     );
@@ -153,7 +153,7 @@ const notifyPatientTurnCalled = (
     <p>Please arrive immediately to avoid delays for the next patients.</p>`;
     sendNotification(
         patientEmail,
-        "Your Turn - AyurAyush",
+        "Your Turn - AarogyaAI",
         "Please Proceed to Doctor",
         body,
     );

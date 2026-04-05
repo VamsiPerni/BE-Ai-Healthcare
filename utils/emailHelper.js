@@ -34,7 +34,7 @@ const sendOtpEmail = async (toEmail, otp) => {
     console.log("... Sending OTP Email to ", toEmail);
     await sendEmail(
         toEmail,
-        "OTP Verification for AyurAyush HealthCare App",
+        "OTP Verification for AarogyaAI HealthCare App",
         `
 <!DOCTYPE html>
 <html>
@@ -114,7 +114,7 @@ const sendOtpEmail = async (toEmail, otp) => {
     <div class="container">
         <div class="card">
             <div class="header">
-                <h1>AyurAyush</h1>
+                <h1>AarogyaAI</h1>
             </div>
             
             <div class="content">
@@ -125,7 +125,7 @@ const sendOtpEmail = async (toEmail, otp) => {
             </div>
             
             <div class="footer">
-                <p>AyurAyush, LPU</p>
+                <p>AarogyaAI, LPU</p>
                 <p>Contact: XXX-XXX-XXXX</p>
             </div>
         </div>

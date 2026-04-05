@@ -10,6 +10,8 @@ const {
     getTodayQueue,
     callPatientForTurn,
     setDoctorAvailability,
+    getVerifiedDoctorsForAdmin,
+    getAvailableSlotsForAdmin,
     offlineBookAppointment,
 } = require("./services");
 
@@ -228,6 +230,41 @@ const setDoctorAvailabilityController = async (req, res, next) => {
     }
 };
 
+const getVerifiedDoctorsForAdminController = async (req, res, next) => {
+    try {
+        const data = await getVerifiedDoctorsForAdmin(req.query);
+        res.status(200).json({
+            isSuccess: true,
+            message: "Verified doctors retrieved",
+            data,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getAvailableSlotsForAdminController = async (req, res, next) => {
+    try {
+        const { doctorId, date } = req.query;
+
+        if (!doctorId || !date) {
+            return res.status(400).json({
+                isSuccess: false,
+                message: "doctorId and date are required",
+            });
+        }
+
+        const data = await getAvailableSlotsForAdmin(doctorId, date);
+        res.status(200).json({
+            isSuccess: true,
+            message: "Available slots retrieved",
+            data,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 const offlineBookAppointmentController = async (req, res, next) => {
     try {
         console.log("-----🟢 inside offlineBookAppointmentController-------");
@@ -261,5 +298,7 @@ module.exports = {
     getTodayQueueController,
     callPatientController,
     setDoctorAvailabilityController,
+    getVerifiedDoctorsForAdminController,
+    getAvailableSlotsForAdminController,
     offlineBookAppointmentController,
 };

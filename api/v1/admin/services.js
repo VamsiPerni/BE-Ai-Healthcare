@@ -432,6 +432,78 @@ const setDoctorAvailability = async (
     };
 };
 
+const getVerifiedDoctorsForAdmin = async (query = {}) => {
+    const { page, limit, skip } = parsePagination(query);
+    const doctorQuery = { isVerified: true };
+
+    const [doctors, totalCount] = await Promise.all([
+        DoctorModel.find(doctorQuery).skip(skip).limit(limit),
+        DoctorModel.countDocuments(doctorQuery),
+    ]);
+
+    const userIds = doctors.map((d) => d.userId);
+    const users = await UserModel.find({
+        _id: { $in: userIds },
+        isActive: true,
+    }).select("name email phone gender profilePhoto");
+
+    const doctorList = doctors
+        .map((doc) => {
+            const user = users.find(
+                (u) => u._id.toString() === doc.userId.toString(),
+            );
+            if (!user) return null;
+
+            return {
+                doctorId: doc.userId,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                gender: user.gender,
+                profilePhoto: user.profilePhoto,
+                specialization: doc.specialization,
+                qualification: doc.qualification,
+                experience: doc.experience,
+                consultationFee: doc.consultationFee,
+            };
+        })
+        .filter(Boolean);
+
+    return {
+        count: doctorList.length,
+        totalCount,
+        page,
+        totalPages: Math.ceil(totalCount / limit),
+        doctors: doctorList,
+    };
+};
+
+const getAvailableSlotsForAdmin = async (doctorId, date) => {
+    const doctor = await DoctorModel.findOne({
+        userId: doctorId,
+        isVerified: true,
+    });
+
+    if (!doctor) {
+        const err = new Error("Doctor not found or not verified");
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const availableSlots = await DoctorAvailabiltyModel.getBookableSlots(
+        doctorId,
+        date,
+        AppointmentModel,
+    );
+
+    return {
+        doctorId,
+        date,
+        availableSlots,
+        totalSlots: availableSlots.length,
+    };
+};
+
 const offlineBookAppointment = async (adminId, bookingData) => {
     console.log("-----🟢 inside offlineBookAppointment-------");
     const {
@@ -576,6 +648,8 @@ const callPatientForTurn = async (appointmentId, adminUserId) => {
         throw err;
     }
 
+    const isFirstCall = !appointment.calledAt;
+
     appointment.queueStatus = "called";
     appointment.calledAt = new Date();
     appointment.calledBy = adminUserId;
@@ -589,17 +663,20 @@ const callPatientForTurn = async (appointmentId, adminUserId) => {
         message: `You are being called for consultation with Dr. ${appointment.doctorId.name}. Please proceed now.`,
     });
 
-    notifyPatientTurnCalled(appointment.patientId.email, {
-        doctorName: appointment.doctorId.name,
-        date: appointment.date,
-        tokenNumber: appointment.tokenNumber,
-    });
+    if (isFirstCall) {
+        notifyPatientTurnCalled(appointment.patientId.email, {
+            doctorName: appointment.doctorId.name,
+            date: appointment.date,
+            tokenNumber: appointment.tokenNumber,
+        });
+    }
 
     return {
         appointmentId: appointment._id,
         queueStatus: appointment.queueStatus,
         calledAt: appointment.calledAt,
         notificationId: notification._id,
+        emailSent: isFirstCall,
     };
 };
 
@@ -615,5 +692,7 @@ module.exports = {
     getTodayQueue,
     callPatientForTurn,
     setDoctorAvailability,
+    getVerifiedDoctorsForAdmin,
+    getAvailableSlotsForAdmin,
     offlineBookAppointment,
 };

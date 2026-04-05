@@ -15,6 +15,8 @@ const {
     getTodayQueueController,
     callPatientController,
     setDoctorAvailabilityController,
+    getVerifiedDoctorsForAdminController,
+    getAvailableSlotsForAdminController,
     offlineBookAppointmentController,
 } = require("./controllers");
 const { rejectAppointmentValidator, offlineBookValidator } = require("./dto");
@@ -97,6 +99,20 @@ adminsRouter.put(
     validateLoggedInUserMiddleware,
     validateIsAdminMiddleware,
     setDoctorAvailabilityController,
+);
+
+adminsRouter.get(
+    "/doctors",
+    validateLoggedInUserMiddleware,
+    validateIsAdminMiddleware,
+    getVerifiedDoctorsForAdminController,
+);
+
+adminsRouter.get(
+    "/doctors/available-slots",
+    validateLoggedInUserMiddleware,
+    validateIsAdminMiddleware,
+    getAvailableSlotsForAdminController,
 );
 
 adminsRouter.post(
